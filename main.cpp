@@ -22,78 +22,34 @@ using cv::FILLED;
 using cv::LINE_AA;
 using cv::LINE_8;
 
-struct HEADER {
-    unsigned char riff[4];
-    unsigned int overall_size;
-    unsigned char wave[4];
-    unsigned char fmt_chunk_marker[4];
-    unsigned int length_of_fmt;
-    uint16_t format_type;
-    uint16_t channels;
-    unsigned int sample_rate;
-    unsigned int magic_number;
-    uint16_t block_align;
-    uint16_t bits_per_sample;
-    unsigned char data_chunk_header[4];
-    unsigned int data_size;
-};
+// defined type for unsigned char (since char8_t uses newer compiler)
+typedef unsigned char uchar8_t;
 
-const char FILE_NAME[] = "./FREE.wav";
+const char FILE_NAME[] = "./FREE(16).wav";
 const char OUTPUT_FILE_NAME[] = "./test.mp4";
 const int WIDTH = 1500;
 const int HEIGHT = 1500;
 const int FRAME_RATE = 60;
-const float AMP_SCALE = 1.35;
 const int CHANNEL_SHIFT = 200;
 const bool FORCE_MONO = false;
 const int COLOR_TYPE = 0;
 const int CIRCLE_SIZE = 2;
 
-struct HEADER create_header(FILE *fp) {
-    // to the beginning
-    fseek(fp, 0, SEEK_SET);
-
-    struct HEADER header;
-    fread(header.riff, 4, 1, fp);
-    fread(&(header.overall_size), sizeof(header.overall_size), 1, fp);
-    fread(header.wave, 4, 1, fp);
-    fread(header.fmt_chunk_marker, 4, 1, fp);
-    fread(&(header.length_of_fmt), 4, 1, fp);
-    fread(&(header.format_type), 2, 1, fp);
-    fread(&(header.channels), 2, 1, fp);
-    fread(&(header.sample_rate), 4, 1, fp);
-    fread(&(header.magic_number), 4, 1, fp);
-    fread(&(header.block_align), 2, 1, fp);
-    fread(&(header.bits_per_sample), 2, 1, fp);
-    fread(header.data_chunk_header, 4, 1, fp);
-    fread(&(header.data_size), 4, 1, fp);
-    return header;
-}
-
-char* trail_string(unsigned char* orig_string) {
-    char *clean_string =
-        reinterpret_cast<char *>(malloc(sizeof(orig_string) + 1));
-    memcpy(clean_string, orig_string, sizeof(orig_string));
-    clean_string[4] = '\0';
-    return clean_string;
-}
-
-void print_header_data(struct HEADER *header) {
-    printf("WAV DATA\n");
-    printf("RIFF:\t\t%s \n", trail_string(header -> riff));
-    printf("SIZE:\t\t%u bytes \n", header -> overall_size);
-    printf("WAVE:\t\t%s \n", trail_string(header -> wave));
-    printf("FMT MARKER:\t%s \n", trail_string(header -> fmt_chunk_marker));
-    printf("FMT LENGTH:\t%u \n", header -> length_of_fmt);
-    printf("FORMAT TYPE:\t%u \n", header -> format_type);
-    printf("CHANNELS:\t%u \n", header -> channels);
-    printf("SAMPLE RATE:\t%u hz\n", header -> sample_rate);
-    printf("MAGIC:\t\t%u \n", header -> magic_number);
-    printf("BLOCK ALIGN:\t%u bytes\n", header -> block_align);
-    printf("BIT / SAMPLE:\t%u \n", header -> bits_per_sample);
-    printf("DATA:\t\t%s \n", trail_string(header -> data_chunk_header));
-    printf("DATA SIZE:\t%u bytes \n", header -> data_size);
-}
+struct HEADER {
+    uchar8_t riff[4];
+    uint32_t overall_size;
+    uchar8_t wave[4];
+    uchar8_t fmt_chunk_marker[4];
+    uint32_t length_of_fmt;
+    uint16_t format_type;
+    uint16_t channels;
+    uint32_t sample_rate;
+    uint32_t magic_number;
+    uint16_t block_align;
+    uint16_t bits_per_sample;
+    uchar8_t data_chunk_header[4];
+    uint32_t data_size;
+};
 
 // progress helper
 class progress_bar {
@@ -183,10 +139,108 @@ class rainbow {
         }
 };
 
+// populate header from file
+struct HEADER create_header(FILE *fp) {
+    // to the beginning
+    fseek(fp, 0, SEEK_SET);
+
+    struct HEADER header;
+    fread(header.riff, 4, 1, fp);
+    fread(&(header.overall_size), sizeof(header.overall_size), 1, fp);
+    fread(header.wave, 4, 1, fp);
+    fread(header.fmt_chunk_marker, 4, 1, fp);
+    fread(&(header.length_of_fmt), 4, 1, fp);
+    fread(&(header.format_type), 2, 1, fp);
+    fread(&(header.channels), 2, 1, fp);
+    fread(&(header.sample_rate), 4, 1, fp);
+    fread(&(header.magic_number), 4, 1, fp);
+    fread(&(header.block_align), 2, 1, fp);
+    fread(&(header.bits_per_sample), 2, 1, fp);
+    fread(header.data_chunk_header, 4, 1, fp);
+    fread(&(header.data_size), 4, 1, fp);
+    return header;
+}
+
+// append trailing null to input
+char* trail_string(uchar8_t* orig_string) {
+    char *clean_string =
+        reinterpret_cast<char *>(malloc(sizeof(orig_string) + 1));
+    memcpy(clean_string, orig_string, sizeof(orig_string));
+    clean_string[4] = '\0';
+    return clean_string;
+}
+
+// helper to print header
+void print_header_data(struct HEADER *header) {
+    printf("WAV DATA\n");
+    printf("RIFF:\t\t%s \n", trail_string(header -> riff));
+    printf("SIZE:\t\t%u bytes \n", header -> overall_size);
+    printf("WAVE:\t\t%s \n", trail_string(header -> wave));
+    printf("FMT MARKER:\t%s \n", trail_string(header -> fmt_chunk_marker));
+    printf("FMT LENGTH:\t%u \n", header -> length_of_fmt);
+    printf("FORMAT TYPE:\t%u \n", header -> format_type);
+    printf("CHANNELS:\t%u \n", header -> channels);
+    printf("SAMPLE RATE:\t%u hz\n", header -> sample_rate);
+    printf("MAGIC:\t\t%u \n", header -> magic_number);
+    printf("BLOCK ALIGN:\t%u bytes\n", header -> block_align);
+    printf("BIT / SAMPLE:\t%u \n", header -> bits_per_sample);
+    printf("DATA:\t\t%s \n", trail_string(header -> data_chunk_header));
+    printf("DATA SIZE:\t%u bytes \n", header -> data_size);
+}
+
 // determine the type of the wav byte data
-auto determine_type() {
+auto determine_type(int format_type) {
     return (float_t) 1.0;
 }
+
+// read wav amplitude data from file
+float_t* read_wav_data(HEADER *header, FILE *fp) {
+    // from header
+    const uint16_t format_type = header -> format_type;
+    const uint16_t bits_per_sample = header -> bits_per_sample;
+    const uint16_t block_align = header -> block_align;
+    const uint32_t data_size = header -> data_size;
+    const uint16_t channels = header -> channels;
+
+    // calculated values
+    const uint16_t bytes_per_sample = bits_per_sample / 8;
+    const int max_value = static_cast<int>(pow(2, bits_per_sample));    
+    const int audio_data_length = data_size / bytes_per_sample;
+
+    // stuff we'll fill in
+    float_t *wav_data = reinterpret_cast<float_t *>(malloc(audio_data_length * sizeof(float_t)));
+    float_t amp_val = 0.0;
+    uint32_t pcm_amp_val = 0; 
+    for (int i=0; i < (audio_data_length / channels); i++) {
+        // iterate over channels
+        for (int j=0; j < channels; j++) {
+            // read in data as float
+            fread(reinterpret_cast<char *>(&amp_val), bytes_per_sample, 1, fp);
+            
+            int current_index = (j*(audio_data_length / channels)) + i;
+
+            if (format_type == 3) {
+                wav_data[current_index] = amp_val;
+            }
+            else if (format_type == 1) {
+                // evil floating point bit level hacking
+                memcpy(&pcm_amp_val, &amp_val, bytes_per_sample); 
+                float_t val = ((float_t) (pcm_amp_val * 2) / max_value) - 1.0;
+                
+                if (val < 0) val = val + 1.0;
+                else if (val > 0) val = val - 1.0;
+
+                if (i < 500) printf("%d, %f\n", pcm_amp_val, val);
+                wav_data[current_index] = val;
+            }  
+            assert(wav_data[current_index] >= -1.0 && wav_data[current_index] <= 1.0);       
+        }
+    }
+
+    printf("Done reading WAV data!\n");
+    return wav_data;
+}
+
 
 int main() {
     // open file
@@ -220,43 +274,32 @@ int main() {
     int song_length = header.data_size / header.magic_number;
     printf("SONG LENGTH:\t%u sec \n", song_length);
 
-    if (header.channels != 2||
-        header.block_align != 8 ||
-        header.format_type != 3) {
-        printf(
-            "File must be:\nCHANNELS: 2\nBLOCK ALIGN: 8\nFORMAT TYPE: 3\n");
-        return -1;
-    }
-
     // read file data into array for parsing
     printf("\nReading WAV data!\n");
+    float *wav_data = read_wav_data(&header, fp);
 
-    // create dynamically sized array for byte data
-    int *left_channel = reinterpret_cast<int *>(malloc(header.data_size >> 1));
-    int *right_channel = reinterpret_cast<int *>(malloc(header.data_size >> 1));
+    // create array for canvas y values
+    int *amp_data = reinterpret_cast<int *>(malloc(header.data_size));
 
-    if (NULL == left_channel || NULL == right_channel) {
+    if (NULL == amp_data) {
         perror("malloc failed!");
         return -1;
     }
 
-    assert((header.data_size >> 1) / sizeof(int) ==
-        header.data_size / header.block_align);
-
     // (-1,1) float values must be converted to (0,HEIGHT)
-    int audio_data_length = header.data_size / header.block_align;
-    auto determined_type = determine_type();
-    decltype(determined_type) amp_value;
     printf("Normalizing WAV data!\n");
-    for (int i=0; i < audio_data_length; i++) {
-        // read audio data from file
-        fread(&amp_value, sizeof(amp_value), 1, fp);
-        left_channel[i] =
-            HEIGHT - (((amp_value * AMP_SCALE + 1) * HEIGHT) / 2);
+    int audio_data_length = header.data_size / header.block_align;
+    auto log_amp_val = [](float_t amp_val) { 
+        return (amp_val < 0 ? -1.0 : 1.0) * (log10 (abs(amp_val) + 0.1) + 1);
+    };
 
-        fread(&amp_value, sizeof(amp_value), 1, fp);
-        right_channel[i] =
-            HEIGHT - (((amp_value * AMP_SCALE + 1) * HEIGHT) / 2);
+    for (int i=0; i < audio_data_length; i++) {
+        // iterate over channels
+        for (int j=0; j < header.channels; j++) {
+            int current_index = (j*audio_data_length) + i;
+            float_t amp_val = wav_data[current_index];
+            amp_data[current_index] = ((log_amp_val(amp_val) + 1) * HEIGHT) / 2;
+        }
     }
 
     // all data read so close file
@@ -267,7 +310,6 @@ int main() {
     printf("Drawing frames!\n");
     int frames_to_draw = song_length * FRAME_RATE;
     int values_per_frame = header.sample_rate / FRAME_RATE;
-    size_t frame_byte_size = values_per_frame * sizeof(*left_channel);
     float point_spacing = static_cast<float>(WIDTH) / values_per_frame;
     rainbow color(COLOR_TYPE);
 
@@ -288,14 +330,6 @@ int main() {
     for (int i=0; i < frames_to_draw; i++) {
         // actual image to draw to
         Mat frame(frame_size, CV_8UC3, Scalar::all(0));
-
-        // list of points for frame
-        int point_list_size = values_per_frame * sizeof(Point);
-        Point *frame_points_left =
-            reinterpret_cast<Point *>(malloc(point_list_size));
-        Point *frame_points_right =
-            reinterpret_cast<Point *>(malloc(point_list_size));
-
         Scalar new_color = color.get_color();
 
         // create points from audio data
@@ -304,53 +338,23 @@ int main() {
             int current_index = starting_index + j;
             float x_val = j * point_spacing;
 
-            int left_y_val = left_channel[current_index];
-            int right_y_val = right_channel[current_index];
-
-            // create left and right channel points
-            Point left_point(
-                x_val,  left_y_val - CHANNEL_SHIFT);
-            Point right_point(
-                x_val, right_y_val + CHANNEL_SHIFT);
-
-            frame_points_left[j] = left_point;
-            frame_points_right[j] = right_point;
-
-            // if mono sum/average, draw and early continue
-            if (FORCE_MONO == true) {
-                float mono_y_val =
-                    static_cast<float>(left_y_val +right_y_val) / 2;
-                float center_y = HEIGHT / 2;
-                float inverse_add = center_y - mono_y_val;
-
-                Point point_a(x_val, mono_y_val);
-                Point point_b(x_val, center_y + inverse_add);
-
-                line(
-                    frame,
-                    point_a, point_b, new_color, CIRCLE_SIZE, LINE_AA);
-                continue;
+            // iterate for each channel
+            for (int k=0; k < header.channels; k++) {
+                int shifted_index = (k*audio_data_length) + current_index;
+                int y_val = amp_data[shifted_index];
+                Point point(x_val,  y_val);
+                circle(frame, point, CIRCLE_SIZE, new_color, FILLED, LINE_AA);
             }
-
-            circle(frame, left_point, CIRCLE_SIZE, new_color, FILLED, LINE_AA);
-            circle(frame, right_point, CIRCLE_SIZE, new_color, FILLED, LINE_AA);
         }
 
-        // drop the line into the frame
-        // polylines(
-        // frame, &frame_points_left,
-        // &values_per_frame, 0, false, color, 2, LINE_8, 0);
+        
 
         // write frame to file
         ouput_video << frame;
         progress.increment();
-
-        free(frame_points_left);
-        free(frame_points_right);
     }
 
-    free(left_channel);
-    free(right_channel);
+    free(amp_data);
 
     ouput_video.release();
     return 0;

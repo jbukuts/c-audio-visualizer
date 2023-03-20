@@ -208,17 +208,13 @@ int main() {
     // test assertions to ensure header data makes sense
     assert(sizeof(header.riff) == 4);
     assert(
-        header.magic_number ==
-        (header.sample_rate * header.bits_per_sample * header.channels) / 8);
-    assert(
         header.block_align == (header.bits_per_sample * header.channels) / 8);
+    assert(header.magic_number == (header.sample_rate * header.block_align));
     assert(
         header.overall_size -
         sizeof(header) +
         sizeof(header.data_chunk_header) +
         sizeof(header.data_size) == header.data_size);
-    assert(
-        (header.bits_per_sample * header.channels) / 8 == header.block_align);
     assert(sizeof(header) == 44);
 
     int song_length = header.data_size / header.magic_number;

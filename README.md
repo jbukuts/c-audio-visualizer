@@ -17,3 +17,11 @@ Audio is not muxed on the creation of the video currently. For now, I've opted t
 ```bash
 ./main && ffmpeg -i [IN_VID] -i [WAV_FILE] -map 0:v -map 1:a -c:v copy [OUT_VID]
 ```
+
+## Support
+
+This project uses a custom WAV parser so support is not 100% for all WAV encodings. Support for all bit-rates as well as stereo/mono should be solid. The real issues is the variable length of amplitude data. Below I've created a table listing the encodings I've tested:
+
+| Format | 
+
+Also, only formats 1 and 3 are supported. For format 3 only 32-bit floating point values are allowed. I may extend support for 64-bit in the future. 

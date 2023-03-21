@@ -3,13 +3,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
-#include <string.h>
 #include <time.h>
-// #include <libavcodec/avcodec.h>
+
 #include <algorithm>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/videoio.hpp>
+
+// mine
+#include "src/helpers.h"
 
 using cv::VideoWriter;
 using cv::Size;
@@ -21,6 +23,9 @@ using cv::line;
 using cv::FILLED;
 using cv::LINE_AA;
 using cv::LINE_8;
+
+using helpers::progress_bar;
+using helpers::rainbow;
 
 // defined type for unsigned char (since char8_t uses newer compiler)
 typedef unsigned char uchar8_t;
@@ -49,94 +54,6 @@ struct HEADER {
     uint16_t bits_per_sample;
     uchar8_t data_chunk_header[4];
     uint32_t data_size;
-};
-
-// progress helper
-class progress_bar {
- private:
-        int current = 1;
-        float average_time = 0;
-        clock_t start_time;
-
- public:
-        int total;
-
-        explicit progress_bar(int t) {
-            // hide cursor
-            printf("\e[?25l");
-            total = t;
-            start_time = time(NULL);
-        }
-
-        void release() {
-            // show cursor
-            printf("\e[?25h\n");
-        }
-
-        void increment() {
-            if (current++ < total) {
-                time_t elapsed = time(NULL) - start_time;
-                int time_left =
-                    (static_cast<float>(elapsed) / current) * (total - current);
-
-                printf("\33[2K\r");
-                printf("%.1f%% | %d / %d | %ld s elapsed (ETA: %d s)",
-                    static_cast<float>(current) / total * 100,
-                    current,
-                    total,
-                    elapsed,
-                    time_left);
-                fflush(stdout);
-                return;
-            }
-
-            release();
-        }
-};
-
-// color helper
-class rainbow {
- private:
-        int r = 255, g = 0, b = 0;
-        int type = 0;
-        Scalar* default_color = new Scalar(255, 255, 255);
-
- public:
-        explicit rainbow(int t) {
-            type = t;
-            switch (t) {
-                case 1:
-                    default_color = new Scalar(0, 0, 255);
-                    break;
-                case 2:
-                    default_color = new Scalar(0, 255, 0);
-                    break;
-                case 3:
-                    default_color = new Scalar(255, 0, 0);
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        Scalar get_color() {
-            if (type > 0) return *default_color;
-
-            if (r == 255 && g < 255 && b == 0)
-                g++;
-            else if (g == 255 && r != 0)
-                r--;
-            else if (r == 0 && b < 255)
-                b++;
-            else if (b == 255 && g != 0)
-                g--;
-            else if (g == 0 && r < 255)
-                r++;
-            else if (r == 255 & b != 0)
-                b--;
-
-            return Scalar(b, g, r);
-        }
 };
 
 // populate header from file
@@ -189,7 +106,7 @@ void print_header_data(struct HEADER *header) {
 }
 
 // read wav amplitude data from file
-float_t* read_wav_data(HEADER *header, FILE *fp) {
+float_t* read_wav_data(struct HEADER *header, FILE *fp) {
     // from header
     const uint16_t format_type = header -> format_type;
     const uint16_t bits_per_sample = header -> bits_per_sample;
@@ -208,6 +125,7 @@ float_t* read_wav_data(HEADER *header, FILE *fp) {
 
     printf("SIZE: %d\n", audio_data_length * channels);
     printf("MAX: %ld\n", max_value);
+
     // stuff we'll fill in
     float_t *wav_data = reinterpret_cast<float_t *>
         (malloc(audio_data_length * channels * sizeof(float_t)));
@@ -232,7 +150,7 @@ float_t* read_wav_data(HEADER *header, FILE *fp) {
                     if (val < 0) val = val + 1.0;
                     else if (val > 0) val = val - 1.0;
                 }
-                                
+
                 wav_data[current_index] = val;
             }
             wav_data[current_index] = log_amp_val(wav_data[current_index]);
@@ -242,7 +160,6 @@ float_t* read_wav_data(HEADER *header, FILE *fp) {
     printf("Done reading WAV data!\n");
     return wav_data;
 }
-
 
 int main() {
     // open file
@@ -325,7 +242,9 @@ int main() {
     for (int i=0; i < frames_to_draw; i++) {
         // actual image to draw to
         Mat frame(frame_size, CV_8UC3, Scalar::all(0));
-        Scalar new_color = color.get_color();
+        int* color_arr = color.get_color();
+        Scalar new_color(color_arr[0], color_arr[1], color_arr[2]);
+        free(color_arr);
 
         // create points from audio data
         int starting_index = i * values_per_frame;

@@ -25,8 +25,8 @@ using cv::LINE_8;
 // defined type for unsigned char (since char8_t uses newer compiler)
 typedef unsigned char uchar8_t;
 
-const char FILE_NAME[] = "./my_files/FREE(24_stereo).wav";
-const char OUTPUT_FILE_NAME[] = "./test.mp4";
+const char FILE_NAME[] = "./test_files/test(orig_32_stereo).wav";
+const char OUTPUT_FILE_NAME[] = "./test_32_float.mp4";
 const int WIDTH = 1500;
 const int HEIGHT = 1500;
 const int FRAME_RATE = 60;
@@ -199,37 +199,40 @@ float_t* read_wav_data(HEADER *header, FILE *fp) {
 
     // calculated values
     const uint16_t bytes_per_sample = bits_per_sample / 8;
-    const int max_value = static_cast<int>(pow(2, bits_per_sample));
-    const int audio_data_length = data_size / bytes_per_sample;
+    const uint64_t max_value = static_cast<uint64_t>(pow(2, bits_per_sample));
+    const int audio_data_length = data_size / block_align;
 
     auto log_amp_val = [](float_t amp_val) {
         return (amp_val < 0 ? -1.0 : 1.0) * (log10 (abs(amp_val) + 0.1) + 1);
     };
 
+    printf("SIZE: %d\n", audio_data_length * channels);
+    printf("MAX: %ld\n", max_value);
     // stuff we'll fill in
     float_t *wav_data = reinterpret_cast<float_t *>
-        (malloc(audio_data_length * sizeof(float_t)));
+        (malloc(audio_data_length * channels * sizeof(float_t)));
     float_t amp_val = 0.0;
-    uint32_t pcm_amp_val = 0;
-    for (int i=0; i < (audio_data_length / channels); i++) {
+    int32_t pcm_amp_val = 0;
+    for (int i=0; i < audio_data_length; i++) {
         // iterate over channels
         for (int j=0; j < channels; j++) {
             // read in data as float
             fread(reinterpret_cast<char *>(&amp_val), bytes_per_sample, 1, fp);
 
-            int current_index = (j*(audio_data_length / channels)) + i;
+            int current_index = (j*audio_data_length) + i;
 
             if (format_type == 3) {
-                wav_data[current_index] = amp_val;
+                wav_data[current_index] = (float_t) amp_val;
             } else if (format_type == 1) {
                 // evil floating point bit level hacking
                 memcpy(&pcm_amp_val, &amp_val, bytes_per_sample);
                 float_t val = ((float_t) (pcm_amp_val * 2) / max_value) - 1.0;
 
-                if (val < 0) val = val + 1.0;
-                else if (val > 0) val = val - 1.0;
-
-                if (i < 500) printf("%d, %f\n", pcm_amp_val, val);
+                if (bytes_per_sample > 1) {
+                    if (val < 0) val = val + 1.0;
+                    else if (val > 0) val = val - 1.0;
+                }
+                                
                 wav_data[current_index] = val;
             }
             wav_data[current_index] = log_amp_val(wav_data[current_index]);
@@ -285,17 +288,13 @@ int main() {
         return -1;
     }
 
-    // (-1,1) float values must be converted to (0,HEIGHT)
-    printf("Normalizing WAV data!\n");
     int audio_data_length = header.data_size / header.block_align;
 
-    for (int i=0; i < audio_data_length; i++) {
-        // iterate over channels
-        for (int j=0; j < header.channels; j++) {
-            int current_index = (j*audio_data_length) + i;
-            float_t amp_val = wav_data[current_index];
-            amp_data[current_index] = ((amp_val + 1) * HEIGHT) / 2;
-        }
+    // (-1,1) float values must be converted to (0,HEIGHT)
+    printf("Normalizing WAV data!\n");
+    for (int i=0; i < audio_data_length * header.channels; i++) {
+        float_t amp_val = wav_data[i];
+        amp_data[i] = ((amp_val + 1) * HEIGHT) / 2;
     }
 
     // all data read so close file
@@ -337,7 +336,9 @@ int main() {
             // iterate for each channel
             for (int k=0; k < header.channels; k++) {
                 int shifted_index = (k*audio_data_length) + current_index;
+                assert(shifted_index < audio_data_length * header.channels);
                 int y_val = amp_data[shifted_index];
+
                 Point point(x_val,  y_val);
                 circle(frame, point, CIRCLE_SIZE, new_color, FILLED, LINE_AA);
             }

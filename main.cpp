@@ -25,7 +25,7 @@ using cv::LINE_8;
 // defined type for unsigned char (since char8_t uses newer compiler)
 typedef unsigned char uchar8_t;
 
-const char FILE_NAME[] = "./FREE(16).wav";
+const char FILE_NAME[] = "./my_files/FREE(24_stereo).wav";
 const char OUTPUT_FILE_NAME[] = "./test.mp4";
 const int WIDTH = 1500;
 const int HEIGHT = 1500;
@@ -188,11 +188,6 @@ void print_header_data(struct HEADER *header) {
     printf("DATA SIZE:\t%u bytes \n", header -> data_size);
 }
 
-// determine the type of the wav byte data
-auto determine_type(int format_type) {
-    return (float_t) 1.0;
-}
-
 // read wav amplitude data from file
 float_t* read_wav_data(HEADER *header, FILE *fp) {
     // from header
@@ -204,36 +199,40 @@ float_t* read_wav_data(HEADER *header, FILE *fp) {
 
     // calculated values
     const uint16_t bytes_per_sample = bits_per_sample / 8;
-    const int max_value = static_cast<int>(pow(2, bits_per_sample));    
+    const int max_value = static_cast<int>(pow(2, bits_per_sample));
     const int audio_data_length = data_size / bytes_per_sample;
 
+    auto log_amp_val = [](float_t amp_val) {
+        return (amp_val < 0 ? -1.0 : 1.0) * (log10 (abs(amp_val) + 0.1) + 1);
+    };
+
     // stuff we'll fill in
-    float_t *wav_data = reinterpret_cast<float_t *>(malloc(audio_data_length * sizeof(float_t)));
+    float_t *wav_data = reinterpret_cast<float_t *>
+        (malloc(audio_data_length * sizeof(float_t)));
     float_t amp_val = 0.0;
-    uint32_t pcm_amp_val = 0; 
+    uint32_t pcm_amp_val = 0;
     for (int i=0; i < (audio_data_length / channels); i++) {
         // iterate over channels
         for (int j=0; j < channels; j++) {
             // read in data as float
             fread(reinterpret_cast<char *>(&amp_val), bytes_per_sample, 1, fp);
-            
+
             int current_index = (j*(audio_data_length / channels)) + i;
 
             if (format_type == 3) {
                 wav_data[current_index] = amp_val;
-            }
-            else if (format_type == 1) {
+            } else if (format_type == 1) {
                 // evil floating point bit level hacking
-                memcpy(&pcm_amp_val, &amp_val, bytes_per_sample); 
+                memcpy(&pcm_amp_val, &amp_val, bytes_per_sample);
                 float_t val = ((float_t) (pcm_amp_val * 2) / max_value) - 1.0;
-                
+
                 if (val < 0) val = val + 1.0;
                 else if (val > 0) val = val - 1.0;
 
                 if (i < 500) printf("%d, %f\n", pcm_amp_val, val);
                 wav_data[current_index] = val;
-            }  
-            assert(wav_data[current_index] >= -1.0 && wav_data[current_index] <= 1.0);       
+            }
+            wav_data[current_index] = log_amp_val(wav_data[current_index]);
         }
     }
 
@@ -289,16 +288,13 @@ int main() {
     // (-1,1) float values must be converted to (0,HEIGHT)
     printf("Normalizing WAV data!\n");
     int audio_data_length = header.data_size / header.block_align;
-    auto log_amp_val = [](float_t amp_val) { 
-        return (amp_val < 0 ? -1.0 : 1.0) * (log10 (abs(amp_val) + 0.1) + 1);
-    };
 
     for (int i=0; i < audio_data_length; i++) {
         // iterate over channels
         for (int j=0; j < header.channels; j++) {
             int current_index = (j*audio_data_length) + i;
             float_t amp_val = wav_data[current_index];
-            amp_data[current_index] = ((log_amp_val(amp_val) + 1) * HEIGHT) / 2;
+            amp_data[current_index] = ((amp_val + 1) * HEIGHT) / 2;
         }
     }
 
@@ -346,8 +342,6 @@ int main() {
                 circle(frame, point, CIRCLE_SIZE, new_color, FILLED, LINE_AA);
             }
         }
-
-        
 
         // write frame to file
         ouput_video << frame;
